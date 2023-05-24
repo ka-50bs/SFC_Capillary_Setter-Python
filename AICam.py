@@ -44,7 +44,7 @@ class CapCam(object):
         if (ret):
             self.frame = frame
 
-        self.frame = self.frame[::3,::3,:]
+
         return self
 
     def get_img(self, fname):
@@ -120,7 +120,7 @@ class CapCam(object):
             self.up = int(np.mean(self.edge_up))
             self.down = int(np.mean(self.edge_down))
 
-            self.k = 254 / (self.up - self.down)
+            self.k = -254 / (self.up - self.down)
             self.center = int((self.up + self.down) / 2)
 
         else:
