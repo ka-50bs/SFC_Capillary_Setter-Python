@@ -24,12 +24,12 @@ class CapCam(object):
         self.m2p = 0
         self.p2m = 0
         self.regr = RANSACRegressor(random_state=0, stop_probability=0.90)
-        #self.regr = LinearRegression()
         self.d_pos = []
         self.d_ang = []
         self.up_edge = []
         self.down_edge = []
         self.cap = None
+        self.beam_part = None
 
     def init_cam(self, id_cam, exp):
         '''
@@ -106,10 +106,15 @@ class CapCam(object):
 
     def edge_detect(self, img, win = 20, treshlod = 1.6, inverse = False):
         '''
-        Метод нахождения параметров границ капилляра (вернхей и нижней).
-        :param img: Масиив, кадр для обработки
+        Метод нахождения параметров границ капилляра (верхней и нижней). Параметры границ определяются следующим алгоритмом:
+        - Выбирается две прямоугольных области на кадре сверху и снизу шириной в win пикселей. Эти области представляют из себя фон кадра, который не является капилляром. 
+        - После этого, для каждого среза кадра вдоль оси X вычисляется некоторе пороговое значение исходя из тех пикселей, которые вошли в область фона и среза. 
+        Пороговое значение вычилсяется независимо для верхней и нижней области кадра
+        - Далее, происходит нахождение точек границ капилляра путем движения о края кадра к центру и определения первого пикселя, превыщающего пороговое значение
+        - Пиксели границ подгоняются линейной регрессией и их параметры выводятся.
+        :param img: 2D Массив, кадр для обработки
         :param win: Список, размер окна для преобразования 
-        :return: Возвращает обработанное изображение 
+        :return: угол наклона границ капилляра в радианах, смещение нижней и верхней границы капилляра  
         '''
         img_size = np.shape(img)
         
@@ -122,7 +127,7 @@ class CapCam(object):
         if inverse == False:
             for i in range(img_size[1]):
                 treshold_up = treshlod * np.std(img[:win,i]) + np.mean(img[:win,i])
-                treshold_down = treshlod * np.std(img[:win,i]) + np.mean(img[-win:,i])
+                treshold_down = treshlod * np.std(img[-win:,i]) + np.mean(img[-win:,i])
 
                 up = 0
                 down = 0
@@ -141,7 +146,7 @@ class CapCam(object):
         else:
             for i in range(img_size[1]):
                 treshold_up = treshlod * np.std(img[:win,i]) - np.mean(img[:win,i])
-                treshold_down = treshlod * np.std(img[:win,i]) - np.mean(img[-win:,i])
+                treshold_down = treshlod * np.std(img[:-win,i]) - np.mean(img[-win:,i])
 
                 up = 0
                 down = 0
@@ -162,26 +167,26 @@ class CapCam(object):
         self.down = down_edge
 
         self.regr.fit(x, up_edge)
-        # k_up = self.regr.coef_[0]
-        # b_up = self.regr.intercept_
+
         k_up = self.regr.estimator_.coef_[0]
         b_up = self.regr.estimator_.intercept_
 
         self.regr.fit(x, down_edge)
-        #k_down = self.regr.coef_[0]
-        #b_down = self.regr.intercept_
+
         k_down = self.regr.estimator_.coef_[0]
         b_down = self.regr.estimator_.intercept_
 
-        # self.cap_edges = np.array([b_down, b_up])
-        # self.cap_center = (b_down + b_up) / 2
-        # self.cap_angle = np.arctan((k_down + k_up) / 2)
-
-        # self.m2p = (b_down - b_up) / 254
-        # self.p2m = 1 / self.m2p
         return np.arctan((k_down + k_up) / 2), [b_down, b_up] 
 
     def beam_detect(self, img):
+        '''
+        Метод нахождения параметров луча\струи. Определяются следующим алгоритмом:
+        - Выбирается максимумы для каждого среза кадра вдоль оси X
+        - Выбранный массив максимумов подгоняется линейной регрессией 
+        - Параметры линейной регрессии записываются в поля 
+        :param img: 2D Массив, кадр для обработки
+        '''
+
         img = cv2.blur(img, [9,9])
         img_size = np.shape(img)
         max_array = np.zeros(img_size[1])
@@ -196,8 +201,6 @@ class CapCam(object):
 
         self.regr.fit(x, y)
 
-        # self.beam_angle = self.regr.coef_[0]
-        # self.beam_center = self.regr.intercept_
         self.beam_angle = self.regr.estimator_.coef_[0]
         self.beam_center = self.regr.estimator_.intercept_
         x = np.array(range(img_size[1]))
@@ -207,6 +210,19 @@ class CapCam(object):
 
 
     def cap_init(self, N = 10, factor = 1, channel='gray', inverse = False, treshold = 3):
+        '''
+        Метод инициализации параметров капилляра для их нахождения и фиксации в процессе эксперимента.
+        - В начале, происходит запуск цикла, состоящего из N операций. В каждой итерации происходит выделение изображения с камеры, предобработка изображения 
+        путем выбора целевого канала и масштаба уменьшения изображения. После предобработки происходит нахождение параметров капилляра используюя метод edge_detect. 
+        - После цикла происходит усреднение характеристик капилляра и определение скарирующего коэффициента пиксель/микроны
+        - Определяется массивы основных линий отрисовки: верхняя и нижняя граница капилляра и его середина.   
+
+        :param N: Параметр, число итераций определения границы капилляра
+        :param factor: Параметр, во сколько раз требуется уменьшить исходное изображение
+        :param channel: Параметр, целевой канал обработки изображения
+        :param  inverse: Параметр, позволяет выбрать режим преодоления порогового значения (False - slope down, True - slope up)
+        :param treshold:  Параметр, позволяет регулировать значение порогового значения
+        '''
         edges_list = []
         angles_list = []
         
@@ -237,11 +253,16 @@ class CapCam(object):
         
 
     def beam_init(self,  img, factor = 1, channel='r'):
+        '''
+        Метод определенения параметров луча\струи. Имеет небольшую предобработку изображения 
+
+        :param img: 3D Массив, кадр для обработки
+        :param factor: Параметр, во сколько раз требуется уменьшить исходное изображение
+        :param channel: Параметр, целевой канал обработки изображения
+
+        '''
         img = cv2.blur(img, [21,21])
         beam_img = self.down_scale(img=img, factor=factor, channel=channel)
         self.beam_detect(img=beam_img)
         self.d_ang.append(np.rad2deg(self.cap_angle - self.beam_angle))
         self.d_pos.append((self.cap_center - self.beam_center) * self.p2m) 
-
-    
-
