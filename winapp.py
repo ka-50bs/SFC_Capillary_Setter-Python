@@ -26,9 +26,6 @@ class Ui_MainWindow(object):
     def __init__(self):
         self.RightCam = AICam.CapCam()
         self.LeftCam = AICam.CapCam()
-
-#         self.RightCam.init_video('/home/laser/Старые результаты/WIN_20230330_134335.MP4')
-#         self.LeftCam.init_video('/home/laser/Старые результаты/WIN_20230330_134412.MP4')
         
         self.RightCam_Channel = 'r'
         self.LeftCam_Channel = 'r' 
@@ -210,9 +207,9 @@ class Ui_MainWindow(object):
         self.LeftCam_STDTresholdDoubleSpinBox.setObjectName(u"LeftCam_Exposition_Box")
         self.LeftCam_STDTresholdDoubleSpinBox.setMinimum(0)
         self.LeftCam_STDTresholdDoubleSpinBox.setMaximum(10)
-        self.LeftCam_STDTresholdDoubleSpinBox.valueChanged.connect(self.LeftCam_Exposition_Update)
-        self.LeftCam_layout_Horizontal_2.addWidget(self.LeftCam_STDTresholdDoubleSpinBox)
+        self.LeftCam_STDTresholdDoubleSpinBox.setValue(5)
 
+        self.LeftCam_layout_Horizontal_2.addWidget(self.LeftCam_STDTresholdDoubleSpinBox)
         self.LeftCam_layout.addLayout(self.LeftCam_layout_Horizontal_2)
 
 ###########################################################################################
@@ -290,9 +287,8 @@ class Ui_MainWindow(object):
         self.RightCam_STDTresholdDoubleSpinBox.setObjectName(u"RightCam_Exposition_Box")
         self.RightCam_STDTresholdDoubleSpinBox.setMinimum(0)
         self.RightCam_STDTresholdDoubleSpinBox.setMaximum(10)
-        self.RightCam_STDTresholdDoubleSpinBox.valueChanged.connect(self.RightCam_Exposition_Update)
+        self.RightCam_STDTresholdDoubleSpinBox.setValue(5)
         self.RightCam_layout_Horizontal_2.addWidget(self.RightCam_STDTresholdDoubleSpinBox)
-
         self.RightCam_layout.addLayout(self.RightCam_layout_Horizontal_2)
 
 

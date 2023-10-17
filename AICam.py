@@ -24,12 +24,14 @@ class CapCam(object):
         self.m2p = 0
         self.p2m = 0
         self.regr = RANSACRegressor(random_state=0, stop_probability=0.90)
-        self.d_pos = []
-        self.d_ang = []
+        self.d_pos = [0]
+        self.d_ang = [0]
         self.up_edge = []
         self.down_edge = []
         self.cap = None
         self.beam_part = None
+        
+        self.is_beam = True
 
     def init_cam(self, id_cam, exp):
         '''
@@ -189,11 +191,15 @@ class CapCam(object):
 
         img = cv2.blur(img, [9,9])
         img_size = np.shape(img)
-        max_array = np.zeros(img_size[1])
+        max_array = np.zeros(img_size[1], dtype='int')
 
         for i in range(img_size[1]):
-
             max_array[i] = np.argmax(img[:,i])
+        
+        if np.mean(img[max_array.tolist()]) > np.quantile(img, 0.9):
+            self.is_beam = True
+        else:
+            self.is_beam = False
 
         y = max_array
         x = np.array(range(img_size[1]))
@@ -264,5 +270,9 @@ class CapCam(object):
         img = cv2.blur(img, [21,21])
         beam_img = self.down_scale(img=img, factor=factor, channel=channel)
         self.beam_detect(img=beam_img)
-        self.d_ang.append(np.rad2deg(self.cap_angle - self.beam_angle))
-        self.d_pos.append((self.cap_center - self.beam_center) * self.p2m) 
+        if self.is_beam == True:
+            self.d_ang.append(np.rad2deg(self.cap_angle - self.beam_angle))
+            self.d_pos.append((self.cap_center - self.beam_center) * self.p2m) 
+        else:
+            self.d_ang.append(self.d_ang[-1])
+            self.d_pos.append(self.d_pos[-1])
